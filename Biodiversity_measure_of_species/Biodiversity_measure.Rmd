@@ -1,0 +1,410 @@
+---
+title: "Biodiversity Measure"
+author: "Atharva Rodge"
+date: "2024-01-11"
+output:
+  html_document:
+    df_print: paged
+---
+<style type="text/css">
+  body{
+  font-size: 17px;
+  text-align : justify;
+}
+</style>
+
+## Introduction
+The study below performs the statistical analysis and data analysis on the data-set having the taxonomic groups with species richness and the dominant land class. Starting with a selection of 5 from the 11 taxonomic groups for the study. Five taxonomic group which were select for this analysis following Bees, Birds, Hoverflies, Isopods, Grasshoppers_._Crickets. These five taxonomic groups, terming as selected_BD5 in the study. Then, univariate analysis performing on the selected_BD5 that focuses on calculating the characteristics of each selected variable from the selected 5. It involves measures like mean, median, minimum, maximum, 1st quantile, 2nd quantile and winsorized mean. Furthermore, the analysis concludes with the calculation of a correlation matrix between all of the selected BD5, which provides insight into how variables are related to one another. A box plot is then created for the variable 'Isopods'. In addition, the code performs hypothesis tests, such as 'T-Test' and 'KS-Test,' which generate p-values. Following that, a contingency test is run, comparing selected BD5 with actual BD11. Through this contingency table, the code calculates various parameters, such as Odds ratio, Sensitivity, Specificity, and Youden’s index. These values provide understanding of the relationships and associations between the variables considered in the analysis. Afterward, the program conducts linear regression and multiple linear regression. The code’s primary purpose is to explain the relationships between species and dominating land classes, detect trends or patterns, and investigate potential causes of changes in biodiversity indices across time.
+
+```{r setup, include=FALSE}
+if(!is.null(dev.list())) dev.off()
+rm(list = ls())
+cat("\014")
+
+# Importing necessary libraries
+library(DescTools)
+library(dplyr) 
+library(tidyr)  
+library(ggplot2)
+library(moments)
+library(reshape2)
+require(Hmisc)
+library(corrplot)
+
+# setwd("C:/Users/Atharva/Desktop/Study/stats/MA334-AtharvaRodge") #Setting working directory
+project_data <-  read.csv("proportional_species_richness_NAs_removed.csv") # assigning data-set to a variable
+names(project_data)
+species_5 <- c("Bees","Bird","Hoverflies","Isopods","Grasshoppers_._Crickets") # creating a vector of 5 species
+mean_selected <- rowMeans(project_data[,species_5]) 
+
+# assigning 5 species to other variable named selected_BD5
+selected_BD5 <- project_data %>% 
+  select(Location, Bees, Bird, Hoverflies, Isopods , Grasshoppers_._Crickets, Easting, Northing, dominantLandClass, ecologicalStatus, period) %>% 
+  mutate(eco_status_5 = mean_selected)
+
+#names(selected_BD5)
+#View(selected_BD5)
+
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Univariate Analysis
+
+### Selected BD5 Summary
+
+```{r , message=FALSE}
+
+#performing uni variate analysis to calculate 7 statistics for each variable BD5
+BD5 <- selected_BD5 %>% select(Bees, Bird, Hoverflies, Isopods, Grasshoppers_._Crickets)
+table <- data.frame()
+for(i in c(2:6)){
+  table <- rbind(table,
+                 c(names(selected_BD5)[i],
+                   round(min(selected_BD5[,i],na.rm = TRUE),digits = 2),
+                   round(quantile(selected_BD5[,i], 0.25),digits = 2) ,
+                   round(median(selected_BD5[,i],na.rm = TRUE),digits = 2),
+                   round(mean(selected_BD5[,i],na.rm = TRUE),digits = 2),
+                   round(quantile(selected_BD5[,i], 0.75),digits = 2),
+                   round(max(selected_BD5[,i],na.rm = TRUE),digits = 2)
+                 ))
+}
+
+winsorized_mean <- round(sapply(BD5, function(x) mean(Winsorize(x , 0.2))), digits = 2) # winsorized mean calculation
+winsorized_mean <- as.data.frame(winsorized_mean)
+Winsorize_mean_values <- winsorized_mean %>% pull(winsorized_mean)
+statistic_table <- cbind(table,as.data.frame(Winsorize_mean_values)) # combining both the tables 
+colnames(statistic_table) <- c("Names","Minimun","Q1","Median","Mean","Q2","Maximum","Winsorized") # assigning column names to the table
+statistic_table
+```
+The above table presents summary statistics for five group’s Bees, Bird, Hoverflies, Isopods, Grasshoppers_._Crickets in the BD5 group. It includes traditional values and an additional statistic – the 20% winsorized mean. These mean values provide a summary measure of central tendency for each variable across the specified species. As in the table, we can see that the mean mirrors for every species expect Bees with a very small value so we can say that there is no variability in the dataset and between the species. The median value, 5 variables is 0.62 we measured median the for central tendency and is the middle point of the data set, indicating that about 50% of the values are below 0.62 and 50% are above this value 0.62. The quarter’s 1 and 2 provide insights into the spread of the data, and the minimum and maximum values help identify the range of observations.
+
+### Correlation Matrix Between selected BD5
+
+```{r , message=FALSE}
+
+# correlatin matrix ti identify the relation between the species
+corr_matrix <- selected_BD5 %>% filter(grepl("^\\d{1-2}s", dominantLandClass)) %>% select(c(2:6)) %>% cor()
+colnames(corr_matrix) <- c('Bees','Bird','Hoverflies','Isopods','Grasshoppers_._Cri')
+rownames(corr_matrix) <- c('Bees','Bird','Hoverflies','Isopods','Grasshoppers_._Cri')
+corr_matrix # printing correlation matrix
+
+```
+
+The correlation matrix shows the pairwise relation between different variable pairs. Each value in the matrix represents the correlation coefficient between each pair of variables ranging from 0 to 1. Finally, we can say that ‘Bees’ and ‘Bird’, ‘Bees’ and ‘Hoverflies’, and ‘Hoverflies’ and ‘Isopods’ these species have strong and positive correlation between each other. Followed by ‘Bees’ and ‘Isopods’, ‘Bees’ and ‘Grasshopper_._Crickets’, ‘Bird’ and ‘Isopods’, & ‘Hoverflies’ and ‘grasshoppers_._Crickets’ these species show a weak correlation among themselves. The most strong correlation is between ‘Bees’ and ‘Hoverflies’ and the most weakest correlation is between ‘Hoverflies’ and ‘Grasshoppers_._Cricket’. Moreover, as we can see the diagonal values are interpreted as 1.00 which is the correlation of each variable with itself, which is always 1.00 it never changes. The matrix provided us insights of the relationship between each variable and we can find the weak and strong correlation between the variables.
+
+### Box Plot
+```{r,,message=FALSE,fig.width=6,fig.height=4.5,out.width="50%",fig.align='center'}
+# Box plot for specie "Isopods"
+boxpltbird <- selected_BD5 %>%
+  select(Isopods) %>% boxplot( main = "BoxPlot For Isopods", xlab="Isopods",ylab="",col = "red")
+```
+
+The boxplot of Isopods denotes the maximum, minimum, median, and quantile values. The minimum value of Hoverflies is close to 0.05 and maximum value is around 1.2 from the graph. The, black line inside the red rectangular box denotes median which is around 0.5 from the box plot. The horizontal line of the red rectangular denotes 1st and 3rd quantile, it also shows that the 1st quantile is somewhere around 0.4 and 3rd quantile is somewhere below 0.8. This fact shows us that median lies in between 0.4 and 0.8, which is 0.5 approximately.
+
+## Hypothesis tests
+
+### Hypothesis T-test
+```{r , message=FALSE}
+# T-test for dominant land class Scotland
+hypo_tTest <- selected_BD5 %>%
+  filter(grepl("^\\d{1-2}s" , dominantLandClass)) %>%
+  select(Bees,Isopods)
+test <- t.test(hypo_tTest$Bees,hypo_tTest$Isopods) 
+t_test_p.value <- test$p.value
+cat("p-value For Hypothesis T-test:", t_test_p.value, "\n")
+
+```
+The hypothesis, T-test is performed for dominant land class “Scotland” between two species Bees and Isopods. The p-value, which is calculated from t-test is observed as 0.02055546 which is less than a threshold of significance of 0.05. It shows ample proof against the null hypothesis. suggesting a large difference in means between ‘Bees’ and ‘Isopods’. This conclusion indicates that the observed data gives enough proof to indicate that there is a significant difference among 'Bees' and 'Isopods', and the null hypothesis is rejected using the hypothesis t-test.
+
+### Hypothesis Ks-test
+```{r , message=FALSE, warning=FALSE}
+# KS-test for dominant land class England
+hypo_ksTest <- selected_BD5 %>%
+  filter(grepl("^\\d{1-2}e" , dominantLandClass))
+ks_test <- ks.test(hypo_ksTest$Isopods , hypo_ksTest$Bees)
+ks_test_p.value <- ks_test$p.value
+cat("p-value For Hypothesis Ks-test:", ks_test_p.value, "\n")
+```
+The hypothesis ks-test is performed for dominant land class “England” between two species Bees, Isopods. The result of p-value from the ks-test is 1.110223e-16 which is less the 0.05 and it shows that the null hypothesis is rejected based on the performed Ks-Test. With such a small p-value (1.110223e-16), there’s strong validation to reject the null hypothesis. Thus, you can conclude that the distributions of ‘Bees’ and ‘Isopods’ significantly differ based on the Asymptotic Two-Sample Kolmogorov-Smirnov test.
+
+## Contingency table
+```{r , message=FALSE}
+# calculating the difference between the two periods
+Proj_data_split_BD5 <- selected_BD5 %>%
+  select(Location,period,eco_status_5) %>%
+  pivot_wider(names_from = period ,values_from = eco_status_5) %>% 
+  mutate(BD5_change=Y00-Y70)
+
+BD5_change <- Proj_data_split_BD5 %>% pull(BD5_change)
+Proj_data_split_BD11 <- project_data %>%
+  select(Location,period,ecologicalStatus) %>%
+  pivot_wider(names_from = period ,values_from = ecologicalStatus ) %>% 
+  mutate(BD11_change=Y00-Y70)
+
+#View(Proj_data_split_BD11)
+
+BD11_change <- Proj_data_split_BD11 %>% pull(BD11_change)
+Eco_change_BD11 <- Proj_data_split_BD11 %>% select(Location,BD11_change)
+Eco_change_BD5 <- Proj_data_split_BD5 %>% select(Location,BD5_change)
+Both_eco_change <- inner_join(Eco_change_BD11,Eco_change_BD5,by="Location")
+
+Both_eco_change <- Both_eco_change%>%
+  mutate(BD11up=ifelse(Both_eco_change$BD11_change > 0 ,'Increase','Decrease'))%>%
+  mutate(BD5up=ifelse(Both_eco_change$BD5_change > 0 ,'Increase','Decrease'))
+```
+
+### Contingency table for Independent Model 
+``` {r , message=FALSE}
+
+independent_model <- rbind(table(Both_eco_change$BD5up),table(Both_eco_change$BD11up))
+row.names(independent_model) <- c("BD5up","BD11up")
+independent_model
+
+```
+The contingency table of independent model shows the counts of occurrence for each combination of BD5up and BD11up. For BD5up there are 1730 times where biodiversity decreases and 910 times increases after calculating the change in two periods Y00 and Y70 periods of BD5, following same with BD11up there are 1638 instances where biodiversity decreases and 1002 instances where it increased. The table helps us understand the distribution of biodiversity changes independently in BD5 and BD11up. The numbers in each cell reflect the number of cases that fall within the given combination of BD5up and BD11up categories.
+
+### Contingency Table for BD11up against BD5up
+``` {r , message=FALSE}
+
+# now the joint distribution
+Table_up_down <- table( Both_eco_change$BD11up , Both_eco_change$BD5up ) # contingency table for interpretation 
+colnames(Table_up_down) <- c("Decrease","Increase");rownames(Table_up_down) <- c("Decrease","Increase")
+contingency_observed <- Table_up_down
+contingency_observed
+```
+The contingency table, above displays the number of occurrences for each combination of BD5up and BD11up categories, with a special focus on instances in which both BD5 and BD11 biodiversity change. In both BD5up and BD11up, there are 1462 cases of reduced biodiversity. There are 176 cases in which BD5 declines and BD11 increases. There are 268 cases in which BD5 grows and BD11 declines. There are 734 instances when both BD5 and BD11 increases. This table focuses on conditions where both BD5 and BD11 are tested. For example, 734 instances show an increase in both BD5 and BD11. It allows us to analyse the joint distribution of changes in BD5 and BD11.
+
+### Likelihood ratio test
+``` {r , message=FALSE}
+GTest(independent_model) # log likelihood ratio test for independent model
+pval1 <- GTest(independent_model)$p.value
+cat("Likelihood ratio test p-value for independent model ",pval1 ,"\n")
+```
+The likelihood ratio test for independent model gives us the p.value as 0.008420129 for further analysis.
+```{r, echo = FALSE, message = FALSE}
+GTest(contingency_observed) # log likelihood ratio test for contingency table
+pval2 <- GTest(contingency_observed)$p.value
+cat("Likelihood ratio test p-value for contingency table ",pval2,"\n")
+```
+The likelihood ratio test for contingency table gives us the p.value as 0.00 for further analysis.
+```{r,}
+confidence_level <- 0.05
+result1 <- ifelse(pval1 < confidence_level, "Reject Null Hypothesis", "Failed Reject Null Hypothesis")
+result2 <- ifelse(pval2 < confidence_level, "Reject Null Hypothesis", "Failed to Reject Null Hypothesis")
+ 
+cat("For Independent model table having p-value -",pval1,"-", result1, "\n")
+cat("For Contingency Table Having p value -",pval2,"-", result2, "\n")
+
+```
+The G-test of independence, also known as the log likelihood ratio test, is a statistical test used to assess the independence between two categorical variables in a contingency table. As we can see the output of the likelihood ratio test the p. values for both the table are 0.008420129 and 0 which means that we have to reject the null hypothesis, since both the values are lower than of the confidence level, we would reject the null hypothesis in each case.
+
+### Odds Ratio (OR)
+```{r , message=FALSE}
+
+true_inc <- contingency_observed[2, 2]
+true_dec <- contingency_observed[1, 1]
+false_dec <- contingency_observed[1, 2]
+false_inc <- contingency_observed[2, 1]
+
+# odds ratio
+odds_ratio <- (true_inc * true_dec) / (false_dec * false_inc)
+cat("Odds Ratio:", odds_ratio, "\n")
+```
+An odds ratio of 22.75076 implies a strong positive association between the increase and decrease in the contingency table. The probabilities of the event occurring in an increase are more than 22 times than in a decrease, showing a considerable and statistically significant link between the variables.
+
+### Sensitivity
+``` {r , message=FALSE}
+# sensitivity
+sensitivity <- true_inc / (true_inc + false_dec)
+cat("Sensitivity:", sensitivity, "\n")
+```
+A sensitivity of 0.8065934 shows that the test correctly detected the problem in almost 80% of situations when it was present. It illustrates how well the test captures and keeps track of actual positive cases, proving its capacity to identify the condition properly.
+
+### Specificity
+```  {r , message=FALSE}
+#  specificity
+specificity <- true_dec / (false_inc + true_dec)
+cat("Specificity:", specificity, "\n")
+```
+This high specificity indicates that the test is effective at avoiding false positives while correctly identifying true negatives.
+
+### Youden’s Index
+```  {r , message=FALSE}
+#  Youden’s Index
+youdens_index <- sensitivity + specificity - 1
+cat("Youden’s Index:", youdens_index, "\n")
+```
+The high Youden’s Index further supports the overall good performance of the diagnostic test. The value represents the test’s overall performance, taking sensitivity and specificity under consideration. A higher Youden’s Index shows that the test has better overall discriminating ability. In our case, a Youden’s Index of 0.6516801 suggests that your test achieves an acceptable balance between sensitivity and specificity.
+
+## Simple Linear Regression
+
+The simple linear regression is done on variable 'Carabids' which is selected from BD11 other than selected BD5 this variable is denoted as BD1 for the further analysis against ecological status of the 5 selected variables named eco_status_5. IN the above scatter plot the x-axis shows the mean ecological status of 5 selected variables and y-axis show the abundance of 'Carabids'' The pattern shows us there is a positive linear relation between these variables. The red line is indicated as regression line and is easily observed that the points are following a linear pattern with rising pattern i.e as eco_status_5 rises there is a rise in BD1 'Carabids'. A green line's positive slope is significantly distinct from zero, which supports this association.  The above figure depicts the relationship between the two variables and how strongly they are linked they have a positive correlation between the two variables. The additional line which is green line represents the best fit line or alternative regression line as well.
+
+```{r,,message=FALSE,fig.width=6,fig.height=4.5,out.width="50%",fig.align='center'}
+# Simple linear regression part
+BD1 <- project_data$Carabids
+plot(BD1 ~ selected_BD5$eco_status_5)
+abline(0,1,col="red")
+lin_mod <- lm(BD1 ~ selected_BD5$eco_status_5)
+abline(lin_mod,col="green")
+```
+
+
+### Slope
+```{r,,message=FALSE}
+cat("Estimated Slope:", coef(lin_mod)[2], "\n")
+```
+The slope of the regression line 0.901095 indicates high strength between BD1 and eco_status_5. A positive slope indicates positive relation between the variables i.e if eco_status_5 increases BD1 increases and have strong relation.
+
+## Multiple Linear Regression
+### AIC (Initial Model)
+```{r,,}
+# Build the models
+initial_mlr_model <- lm(BD1~.,
+            data=selected_BD5[c(species_5)],y=TRUE)
+cat("AIC initial model:",AIC(initial_mlr_model), "\n")
+max_p <- max(summary(initial_mlr_model)$coefficients[,"Pr(>|t|)"])
+cat("Maximun p.value for reduced model:",max_p,"\n")
+             
+```
+The AIC also known as Akaike Information Criterion helps us too measure the relative quality of a statistical model for a given set of data. It balances The level of fit among the model & the complexity of the model, penalizing models with more parameters. The lower the AIC, the better the model is considered. The output value of -3802.1 suggests that the initial MLR model has a good balance between fitting the data well and avoiding over fitting. 
+``` {r, }
+
+summary(initial_mlr_model)
+initial_mlr_model_reduced <- lm(BD1~.,
+                    data=selected_BD5[c("Bird","Hoverflies","Isopods","Grasshoppers_._Crickets")],y=TRUE)
+```
+### AIC reduced model
+
+Next for feature selection selection we have to eliminate one variable considering its p.value from the summary of the AIC initial model. The p value suggests us that it failed to reject the null hypothesis from the data output of the summary. so as the p.value of the "Bees" is 0.06 which is above our significance level so we remove the species variable Bees for AIC of reduced. Now, as we can see that the AIC value of reduced model is slightly lower than initial model which indicates us a better fitted model therefore the reduced model is preferred over initial model.
+
+
+```{r,}
+AIC(initial_mlr_model,initial_mlr_model_reduced) # here initial_mlr_model is preferred by p and AIC criteria
+
+
+```
+### AIC interaction model
+
+The next step is to perform the AIC for interaction model where we multiply two variables. The first variable we took is 'Bees' which we eliminated earlier and for the second variable to multiply with 'Bees' we will analyse the summary of the reduced MLR model the p.values for all the variables are extremely small, which indicates that each predictor is likely to have a statistically significant effect on response variable so all the variables equally contributes to the model. So for interaction we took 'Grasshoppers_._Crickets' as a multiplier variable with 'Bees.'
+```{r,,message=FALSE,fig.width=6,fig.height=4.5,out.width="50%"}
+
+initial_mlr_model_interaction <- lm(BD1~
+                          Bees+Bird+Hoverflies+Isopods+Grasshoppers_._Crickets
+                        +Grasshoppers_._Crickets*Bees,   
+                        data=selected_BD5,y=TRUE)
+
+AIC(initial_mlr_model,initial_mlr_model_reduced,initial_mlr_model_interaction) # model with interaction preferred 
+
+# AIC values for your models
+aic_values <- c(AIC(initial_mlr_model), AIC(initial_mlr_model_reduced), AIC(initial_mlr_model_interaction))
+
+# Model names
+model_names <- c("Initial Model", "Reduced Model", "Interaction Model")
+aic_diff <- aic_values - ceil(max(aic_values))
+
+# Create a bar plot with differences
+barplot(aic_diff, names.arg = model_names, col = "pink", main = "AIC Models", ylab = "AIC Differences")
+
+# Add AIC differences as text labels
+text(1:length(aic_diff), aic_diff, labels = round(aic_diff, 2), pos = 3, col = "black")
+
+plot(BD1 ~ initial_mlr_model_reduced$fitted.values)
+abline(0,1,col="red")
+```
+
+For the above bar plot we can observe the values of all the AIC models and we can conclude that the lower AIC is of reduced. and we have performed a Linear regression model test for reduced model above. Moreover, there is a residual plot of the best AIC model which is reduced AIC model as it is the best fitted model. As observed the plot is linear and the values are properly fitted around the red line. 
+
+### MSE (Mean Square Error)
+```{r,,message=FALSE,fig.width=6,fig.height=4.5,out.width="50%"}
+
+Proj_data_Y70 <- project_data %>% filter(period=="Y70") # training set
+Proj_data_Y00 <- project_data %>% filter(period=="Y00") # test set
+
+lmMod_70 <- lm(Proj_data_Y70$Bees~.,
+               data=Proj_data_Y70[c(species_5)],y=TRUE)
+
+plot(lmMod_70$residuals ~ lmMod_70$fitted.values) # look for unwanted pattern in residuals
+abline(0,0,col="red")
+
+Predict_00 <- predict(lmMod_70,Proj_data_Y00)
+
+plot(Predict_00 ~ Proj_data_Y00$Bees)
+abline(0,1,col="red")
+
+# MSE on train data set 
+cat("Mean square error on train set:",mean((Proj_data_Y70$Bees-lmMod_70$fitted.values)^2),"\n")
+cat("Mean square error on test data set:",mean((Proj_data_Y00$Bees-Predict_00)^2),"\n")
+
+```
+
+The project data is divided into two sub data sets considering two periods Y70 and Y00. Filtered period data of Y70 is taken for training and Y00 is taken for testing. Then, MSE is calculated on both the training and testing data. MSE on the training set measures how well the model fits the data it was trained on. A lower MSE indicates better model performance. In our case, the MSE is lower on the training set 0.04329819 compared to the test set 0.188409 i.e the the training set fits the training data well. MSE on the test set measures the model's performance on new, unseen data. A lower MSE on the test set indicates better generalization, but our data might indicate that the model doesn't generalize well to new data.
+
+## Open Analysis
+### Bar Plot
+
+The code first combines the time period and dominating land class of the specified five groups BD5. A new data is created with median values for each land type and two time period. With the help of ggplot it then generates the bar plot, where the block is of one variable of 5  group. These bars are represented by a distinct color. The Bar plot illustrates the median values for period Y00 and period Y70 for land class "Coastal plains/soft coasts, S-W Scotland", "Isolated hills/mountain summits, W Scotland". The 5 bar plots are for 5 different species which were selected at the start of the project. Plotted for Median of BD5 against two periods. The bar plot as we can see above shows which period of particular variable has greater median value.
+```{r,,fig.align='center',message=FALSE,fig.width=10,fig.height=4}
+
+### Open Analysis
+BD5_by_location_period <- aggregate(project_data[species_5], by = project_data[c("dominantLandClass", "period")], FUN = median)
+
+# Filter for only the two periods of interest
+BD5_Y70 <- BD5_by_location_period[BD5_by_location_period$period == "Y70", ]
+BD5_Y00 <- BD5_by_location_period[BD5_by_location_period$period == "Y00", ]
+
+# Merge the data with the corresponding land classes 
+land_classes <- data.frame(
+  dominantLandClass = c("13s", "18s"),
+  LandClass = c("Coastal plains/soft coasts, S-W Scotland","Isolated hills/mountain summits, W Scotland")
+)
+
+#land_classes
+BD5_Y70 <- merge(BD5_Y70, land_classes, by = "dominantLandClass")
+BD5_Y00 <- merge(BD5_Y00, land_classes, by = "dominantLandClass")
+
+# Create a new data frame with the median BD7 values for each land class and period
+BD5_medians <- rbind(
+  data.frame(LandClass = BD5_Y70$LandClass, BD5 = BD5_Y70[, species_5], Period = "Y70"),
+  data.frame(LandClass = BD5_Y00$LandClass, BD5 = BD5_Y00[, species_5], Period = "Y00")
+)
+
+# Remove LandClass column from BD7_medians
+
+BD5_medians <- subset(BD5_medians, select = -LandClass)
+
+# Melt data for plotting
+BD5_medians <- reshape2::melt(BD5_medians, id.vars = c("Period"), variable.name = "Taxon", value.name = "median")
+
+#BD5_medians
+# Create a bar plot of the median BD5 values for each period
+
+Bar_Plot<-ggplot(BD5_medians, aes(x = Period, y = median, fill = Taxon)) +
+  geom_col(position = "dodge") +
+  ggtitle("Median Of BD5 values by Species and Period") +
+  xlab("Period") + ylab("Median BD5") +
+  facet_wrap(~Taxon, ncol = 4, scales="free_y") +
+  scale_fill_manual(values = c("cyan", "pink", "green", "orange", "violet", "yellow","gray"))
+Bar_Plot
+
+```
+
+### Box Plot
+Again, the Box plot is created which illustrates the median values for period Y00 and period Y70 for land class "Coastal plains/soft coasts, S-W Scotland", "Isolated hills/mountain summits, W Scotland". The box plot can show us the minimum, maximum, 1st quantile, 2nd quantile and mean/median. The 5 bar plots are plotted each for one specie of BD5.  The box is plotted with median of BD5 on y-axis and two periods Y00, Y70 on x-axis. For example, if we look for the box plot of "Bees" we can find that the minimum value is somewhere around 0.3, the 1st quantile is approximately 0.35, median is somewhere near 0.42, 2nd quantile near 0.5 and the max value 0.55. Considering these we can interpret the summary of the data from the box plot.
+
+```{r,,fig.align='center',message=FALSE,fig.width=10,fig.height=4}
+
+# Create a box plot of the median BD5 values for each period
+
+Box_Plot<- ggplot(BD5_medians, aes(x = Period, y = median ,fill = Taxon)) +
+  geom_boxplot() +
+  ggtitle("Median Of BD5 values by Species and Period") +
+  xlab("Period") + ylab("Median BD5") +
+  facet_wrap(~Taxon, ncol = 4, scales = "free_y") +
+  scale_fill_manual(values = c("cyan", "pink", "green", "orange", "violet", "yellow","gray"))
+Box_Plot
+
+```
+
+## Conclusion
+The study performs various tests and helps us to analyse the data executing BD5 summary i/e of 5 species and correlation of these species. We determined that the strong relation is between "Bees" and "Hover flies". Then by the use of box plot we determined various values of specie "Isopods" eg min, max, median, quantiles which we can also calculate for other species using box plot. The code then follows hypothesis testing performing t.test and Ks-test. The T-test gives us evidence for the null hypothesis. Moreover, the simple and linear regression is performed on specie 'Carabids' against selected 5 species. the graph shows us the strong relation between the species and indicates positive relation between the variables.the plot shows reduced AIC model as it is the best fitted model. the plot is linear and the values are properly fitted around the red line. In conclusion. the study helps us developing idea to analyse the graphs and relation between different variables and the plot assist us for further analysis.
